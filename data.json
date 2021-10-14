@@ -1,0 +1,5086 @@
+{
+  "files": [
+    {
+      "name": "files-with-issues/main.cpp",
+      "contents": "typedef unsigned long long size_t;\ntypedef int ssize_t;\n\nssize_t read(int fildes, void* buf, size_t nbyte);\n// CHECK -1:26 -1:35 S945:Do not pass an array as a single pointer. Consider using std::span or reference to an array to avoid array to pointer decay.\n\nbool alwaysTrue() { return true; }\n// CHECK -1:21 -1:27 S3400:Remove this function and declare a constant for this value.\n\nvoid read0Returns0(int a, bool cond) {\n  const int fd = 0;\n  unsigned char buffer[512];\n\n  int b = 502;\n  int c = 1000;\n  bool cond2 = cond;\n\n  if (10 == a) {\n    //nothing\n  }\n\n  if (11 == a) {\n    return;\n  }\n  if (cond2) {\n\n    if (cond) {\n      b = 19;\n      b = c + 1;\n    }\n\n    // will happen and is raised\n    if (alwaysTrue()) {\n      read(fd, buffer, a + b);\n    }\n  }\n\n}\n\nbool myOr(bool b1, int i1) {\n  return b1 || (1 == i1);\n}\n\nbool myAnd(bool b1, int i1) {\n  return myOr(b1, i1) && b1;\n}\n\nvoid withNestedCall(int a, bool cond) {\n  const int fd = 0;\n  unsigned char buffer[512];\n\n  if (15000 == a) {\n    // whatever\n  }\n\n  // will happen and is raised\n  if (cond && myAnd(cond, a)) {\n    read(fd, buffer, a);\n  }\n}\n\nvoid withAdjacentCalls(int a, bool cond) {\n  const int fd = 0;\n  unsigned char buffer[512];\n\n  if (15000 == a) {\n    // whatever\n  }\n\n  // will happen and is raised\n  if (cond && myAnd(cond, a) && myOr(cond, a)) {\n    read(fd, buffer, a);\n  }\n}\n\n// copy of the issue:\n// https://peach.sonarsource.com/project/issues?id=c-family%3Annn&issues=AXGemnhUwsozUuClDgvO&open=AXGemnhUwsozUuClDgvO\n\n#define PATH_MAX 4096\n/* Tokens used for path creation */\n#define TOK_SSN 0\n#define TOK_MNT 1\n#define TOK_PLG 2\n\n#define istopdir(path) ((path)[1] == '\\0' && (path)[0] == '/')\n\nstatic const char *const toks[] = {\n    \"sessions\", \"mounts\", \"plugins\", /* must be the last entry */\n};\nstatic char *cfgpath;\n\nvoid *memccpy(void *dest, const void *src, int c, size_t n);\n\nstatic size_t xstrsncpy(char *dst, const char *src, size_t n) {\n  char *end = (char*)memccpy(dst, src, '\\0', n);\n\n  if (!end) {\n    dst[n - 1] = '\\0'; // NOLINT\n    end = dst + n; /* If we return n here, binary size increases due to auto-inlining  */\n  }\n  return end - dst;\n}\n\nstatic size_t mkpath(const char *dir, const char *name, char *out) {\n  size_t len;\n  /* Handle absolute path */\n  if (name[0] == '/') // NOLINT\n    return xstrsncpy(out, name, PATH_MAX);\n  /* Handle root case */\n  if (istopdir(dir))\n    len = 1;\n  else\n    len = xstrsncpy(out, dir, PATH_MAX);\n  out[len - 1] = '/'; // NOLINT\n  return (xstrsncpy(out + len, name, PATH_MAX - len) + len);\n}\n\nstatic bool load_session(const char *sname, char **path, char **lastdir,\n                         char **lastname, bool restore) {\n  int i = 0;\n  char ssnpath[PATH_MAX];\n  char spath[PATH_MAX];\n\n  mkpath(cfgpath, toks[TOK_SSN], ssnpath);\n  // ...\n  // Whatever\n  return true;\n}\n\n// Link to the issue:\n// https://peach.sonarsource.com/project/issues?id=c-family%3Annn&issues=AXGemnhUwsozUuClDgvP&open=AXGemnhUwsozUuClDgvP\n\n#define NAME_MAX 255\n#define CMD_LEN_MAX (PATH_MAX + ((NAME_MAX + 1) << 1))\nstatic const char * const messages[] = {\n\t\"\",\n\t\"0 entries\",\n\t\"/.nnnXXXXXX\",\n\t\"0 selected\",\n\t\"cancelled\",\n\t\"failed!\",\n\t\"session name: \",\n\t\"'c'p / 'm'v as?\",\n\t\"'c'urrent / 's'el?\",\n\t\"rm -rf %s file%s? [Esc cancels]\",\n\t\"limit exceeded\",\n\t\"'f'ile / 'd'ir / 's'ym / 'h'ard?\",\n\t\"'c'li / 'g'ui?\",\n\t\"overwrite?\",\n\t\"'s'ave / 'l'oad / 'r'estore?\",\n\t\"Quit all contexts?\",\n\t\"remote name (- for hovered): \",\n\t\"archive [path/]name: \",\n\t\"open with: \",\n\t\"[path/]name: \",\n\t\"link prefix [@ for none]: \",\n\t\"copy [path/]name: \",\n\t\"\\n'Enter' to continue\",\n\t\"open failed\",\n\t\"dir inaccessible\",\n\t\"empty! edit/open with\",\n\t\"?\",\n\t\"not set\",\n\t\"entry exists\",\n\t\"too few cols!\",\n\t\"'s'shfs / 'r'clone?\",\n\t\"refresh if slow\",\n\t\"app name: \",\n\t\"'o'pen / e'x'tract / 'l's / 'm'nt?\",\n\t\"keys:\",\n\t\"invalid regex\",\n\t\"'a'u / 'd'u / 'e'xt / 'r'ev / 's'z / 't'm / 'v'er / 'c'lr / '^T'?\",\n\t\"unmount failed! try lazy?\",\n\t\"first file (\\')/char?\",\n\t\"remove tmp file?\",\n\t\"invalid key\",\n\t\"unchanged\"\n};\n#define MSG_KEYS 34\n\nstatic char g_buf[CMD_LEN_MAX] __attribute__((aligned));\n\nstatic size_t handle_bookmark(const char *bmark, char *newpath)\n{\n  int fd;\n  size_t r = xstrsncpy(g_buf, messages[MSG_KEYS], CMD_LEN_MAX);\n  //...\n  // Whatever\n  return 0;\n}\n\n\n// copy of the issue:\n// https://peach.sonarsource.com/project/issues?id=c-family%3Annn&issues=AXGemnhUwsozUuClDgvQ&open=AXGemnhUwsozUuClDgvQ\n\ntypedef unsigned off_t;\ntypedef unsigned uint_t;\n\nstatic char *xitoa(uint_t val) {\n  static char dst[32] = {'\\0'};\n  static const char digits[201] = \"0001020304050607080910111213141516171819\"\n                                  \"2021222324252627282930313233343536373839\"\n                                  \"4041424344454647484950515253545556575859\"\n                                  \"6061626364656667686970717273747576777879\"\n                                  \"8081828384858687888990919293949596979899\";\n  uint_t next = 30, quo, i;\n\n  // while (val >= 100) {\n  //   quo = val / 100;\n  //   i = (val - (quo * 100)) * 2;\n  //   val = quo;\n  //   dst[next] = digits[i + 1];\n  //   dst[--next] = digits[i];\n  //   --next;\n  // }\n\n  /* Handle last 1-2 digits */\n  if (val < 10)\n    dst[next] = '0' + val;\n  else {\n    i = val * 2;\n    dst[next] = digits[i + 1];\n    dst[--next] = digits[i];\n  }\n\n  return &dst[next];\n}\n\nstatic off_t get_size(off_t size, off_t *pval, uint_t comp) {\n  off_t rem = *pval;\n  off_t quo = rem / 10;\n\n  if ((rem - (quo * 10)) >= 5) {\n    rem = quo + 1;\n    if (rem == comp) {\n      ++size;\n      rem = 0;\n    }\n  } else\n    rem = quo;\n\n  *pval = rem;\n  return size;\n}\n\nsize_t strlen(const char *str);\n\nstatic inline size_t xstrlen(const char * s) {\n  return strlen(s); // NOLINT\n}\n\nstatic char *coolsize(off_t size)\n{\n\tconst char * const U = \"BKMGTPEZY\";\n\tstatic char size_buf[12]; /* Buffer to hold human readable size */\n\toff_t rem = 0;\n\tsize_t ret;\n\tint i = 0;\n\n  // while (size >= 1024) {\n\t// \trem = size & (0x3FF); /* 1024 - 1 = 0x3FF */\n\t// \tsize >>= 10;\n\t// \t++i;\n\t// }\n\n  if (i == 1) {\n\t\trem = (rem * 1000) >> 10;\n\t\trem /= 10;\n\t\tsize = get_size(size, &rem, 10);\n\t} else if (i == 2) {\n\t\trem = (rem * 1000) >> 10;\n\t\tsize = get_size(size, &rem, 100);\n\t} else if (i > 2) {\n\t\trem = (rem * 10000) >> 10;\n\t\tsize = get_size(size, &rem, 1000);\n\t}\n\n  if (i > 0 && i < 6 && rem) {\n\t\tret = xstrsncpy(size_buf, xitoa(size), 12);\n\t\tsize_buf[ret - 1] = '.';\n\t\tchar *frac = xitoa(rem);\n\t\tsize_t toprint = i > 3 ? 3 : i;\n\t\tsize_t len = xstrlen(frac);\n\n    if (len < toprint) {\n\t\t\tsize_buf[ret] = size_buf[ret + 1] = size_buf[ret + 2] = '0';\n\t\t\txstrsncpy(size_buf + ret + (toprint - len), frac, len + 1);\n\t\t} else\n      xstrsncpy(size_buf + ret, frac, toprint + 1);\n\n\t\tret += toprint;\n\t} else {\n\t\tret = xstrsncpy(size_buf, size ? xitoa(size) : \"0\", 12);\n\t\t--ret;\n\t}\n\tsize_buf[ret] = U[i];\n\tsize_buf[ret + 1] = '\\0';\n\treturn size_buf;\n}\n\n// copy of the issue:\n// https://peach.sonarsource.com/project/issues?id=c-family%3Atdengine&issues=AXdpxT2Cw2MzS5OY17Hr&open=AXdpxT2Cw2MzS5OY17Hr\n\nstruct SGlobalCfg {\n  void* ptr;\n  int ptrLength;\n  char* option;\n  int cfgStatus;\n};\n\nstruct wordexp_t {\n  void** we_wordv;\n};\n\ntemplate<class... Args>\nvoid uError(Args... args);\nint errno;\nchar* strerror(int err);\n\n#define TAOS_CFG_CSTATUS_FILE 1\n#define NULL nullptr\n\ntemplate <class... Args>\nvoid printf(Args... args);\n\nvoid wordfree(wordexp_t* arg);\nint wordexp(char* arg1, wordexp_t* arg2, int arg3);\n\nchar *realpath(const char *path, char *resolved_path);\n\nstatic bool taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {\n  int length = (int)strlen(input_value);\n  char *option = (char *)cfg->ptr;\n  if (length <= 0 || length > cfg->ptrLength) {\n    uError(\"config option:%s, input value:%s, length out of range[0, %d], use \"\n           \"default value:%s\",\n           cfg->option,\n           input_value, cfg->ptrLength, option);\n    return false;\n  } else {\n    if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {\n      wordexp_t full_path;\n      if (0 != wordexp(input_value, &full_path, 0)) {\n        printf(\"\\nconfig dir: %s wordexp fail! reason:%s\\n\", input_value,\n               strerror(errno));\n        wordfree(&full_path);\n        return false;\n      }\n      if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {\n        // Whatever\n      }\n\n      wordfree(&full_path);\n      char tmp[1025] = {0};\n\n      if (realpath(option, tmp) != NULL) {\n        // Whatever\n      }\n      // Whatever\n    }\n  }\n  return false;\n}\n"
+    }
+  ],
+  "issues": [
+    {
+      "ruleId": "S5782",
+      "primaryLocation": {
+        "message": "\"realpath\" overflows write buffer \"tmp\"; implicit constant size (4096) exceeds buffer size (1025).",
+        "location": {
+          "file": "files-with-issues/main.cpp",
+          "begin": {
+            "line": 356,
+            "column": 11
+          },
+          "end": {
+            "line": 356,
+            "column": 31
+          }
+        },
+        "dependencies": {
+          "enablerId": 2,
+          "precursors": [
+            {
+              "id": 1,
+              "descr": "buffer argument(arg resolved_path)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 356,
+                  "column": 28
+                },
+                "end": {
+                  "line": 356,
+                  "column": 28
+                }
+              }
+            }
+          ]
+        }
+      },
+      "enablers": [
+        {
+          "id": 2,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 343,
+              "column": 11
+            },
+            "end": {
+              "line": 343,
+              "column": 50
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 4,
+            "precursors": [
+              {
+                "id": 3,
+                "descr": "var full_path",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 343,
+                    "column": 38
+                  },
+                  "end": {
+                    "line": 343,
+                    "column": 38
+                  }
+                }
+              },
+              {
+                "id": 10,
+                "descr": "var input_value",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 343,
+                    "column": 24
+                  },
+                  "end": {
+                    "line": 343,
+                    "column": 24
+                  }
+                }
+              },
+              {
+                "id": 12,
+                "descr": "return value from wordexp",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 343,
+                    "column": 16
+                  },
+                  "end": {
+                    "line": 343,
+                    "column": 50
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 341,
+              "column": 9
+            },
+            "end": {
+              "line": 341,
+              "column": 27
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 5,
+            "precursors": [
+              {
+                "id": 9,
+                "descr": "var cfg",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 341,
+                    "column": 9
+                  },
+                  "end": {
+                    "line": 341,
+                    "column": 9
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 334,
+              "column": 7
+            },
+            "end": {
+              "line": 334,
+              "column": 36
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 7,
+                "descr": "var length",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 334,
+                    "column": 22
+                  },
+                  "end": {
+                    "line": 334,
+                    "column": 22
+                  }
+                }
+              },
+              {
+                "id": 7,
+                "descr": "var length",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 334,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 334,
+                    "column": 7
+                  }
+                }
+              },
+              {
+                "id": 9,
+                "descr": "var cfg",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 334,
+                    "column": 31
+                  },
+                  "end": {
+                    "line": 334,
+                    "column": 31
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": 1,
+          "name": "tmp",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 354,
+              "column": 7
+            },
+            "end": {
+              "line": 354,
+              "column": 27
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 3,
+          "name": "full_path",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 342,
+              "column": 7
+            },
+            "end": {
+              "line": 342,
+              "column": 26
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 7,
+          "name": "length",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 332,
+              "column": 3
+            },
+            "end": {
+              "line": 332,
+              "column": 40
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 10,
+                "descr": "var input_value",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 332,
+                    "column": 28
+                  },
+                  "end": {
+                    "line": 332,
+                    "column": 28
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 9,
+          "name": "cfg",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 331,
+              "column": 37
+            },
+            "end": {
+              "line": 331,
+              "column": 49
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 10,
+          "name": "input_value",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 331,
+              "column": 54
+            },
+            "end": {
+              "line": 331,
+              "column": 60
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 11,
+          "name": "return value from strlen",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 332,
+              "column": 21
+            },
+            "end": {
+              "line": 332,
+              "column": 39
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 12,
+          "name": "return value from wordexp",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 343,
+              "column": 16
+            },
+            "end": {
+              "line": 343,
+              "column": 50
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        }
+      ],
+      "informers": [
+        {
+          "descr": "cfg is in { [1, 18446744073709551615] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 333,
+              "column": 26
+            },
+            "end": {
+              "line": 333,
+              "column": 31
+            }
+          },
+          "affectedValues": [
+            9
+          ],
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 9,
+                "descr": "var cfg",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 333,
+                    "column": 26
+                  },
+                  "end": {
+                    "line": 333,
+                    "column": 26
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "descr": "input_value is in { [1, 18446744073709551615] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 332,
+              "column": 21
+            },
+            "end": {
+              "line": 332,
+              "column": 39
+            }
+          },
+          "affectedValues": [
+            10
+          ],
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 10,
+                "descr": "var input_value",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 332,
+                    "column": 28
+                  },
+                  "end": {
+                    "line": 332,
+                    "column": 28
+                  }
+                }
+              },
+              {
+                "id": 11,
+                "descr": "return value from strlen",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 332,
+                    "column": 21
+                  },
+                  "end": {
+                    "line": 332,
+                    "column": 39
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "ruleId": "S5782",
+      "primaryLocation": {
+        "message": "\"memccpy\" overflows read buffer \"src\"; passed size \"n\" (12) exceeds buffer size (2).",
+        "location": {
+          "file": "files-with-issues/main.cpp",
+          "begin": {
+            "line": 95,
+            "column": 22
+          },
+          "end": {
+            "line": 95,
+            "column": 47
+          }
+        },
+        "dependencies": {
+          "enablerId": 1,
+          "precursors": [
+            {
+              "id": 2,
+              "descr": "size argument(arg n)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 46
+                },
+                "end": {
+                  "line": 95,
+                  "column": 46
+                }
+              }
+            },
+            {
+              "id": 3,
+              "descr": "buffer argument(arg src)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 35
+                },
+                "end": {
+                  "line": 95,
+                  "column": 35
+                }
+              }
+            }
+          ]
+        }
+      },
+      "enablers": [
+        {
+          "id": 1,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 9
+            },
+            "end": {
+              "line": 293,
+              "column": 57
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 5,
+            "precursors": [
+              {
+                "id": 9,
+                "descr": "var size_buf",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 19
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 19
+                  }
+                }
+              },
+              {
+                "id": 10,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 29
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 273,
+              "column": 13
+            },
+            "end": {
+              "line": 273,
+              "column": 17
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 6,
+            "precursors": [
+              {
+                "id": 8,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 273,
+                    "column": 13
+                  },
+                  "end": {
+                    "line": 273,
+                    "column": 13
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 6,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 270,
+              "column": 13
+            },
+            "end": {
+              "line": 270,
+              "column": 18
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 7,
+            "precursors": [
+              {
+                "id": 8,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 270,
+                    "column": 13
+                  },
+                  "end": {
+                    "line": 270,
+                    "column": 13
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 7,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 266,
+              "column": 7
+            },
+            "end": {
+              "line": 266,
+              "column": 12
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 8,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 266,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 266,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": 2,
+          "name": "arg n",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 55
+            },
+            "end": {
+              "line": 293,
+              "column": 55
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 3,
+          "name": "arg src",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 29
+            },
+            "end": {
+              "line": 293,
+              "column": 50
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 10,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 29
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 8,
+          "name": "i",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 258,
+              "column": 2
+            },
+            "end": {
+              "line": 258,
+              "column": 11
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 9,
+          "name": "size_buf",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 255,
+              "column": 2
+            },
+            "end": {
+              "line": 255,
+              "column": 26
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 10,
+          "name": "size",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 252,
+              "column": 23
+            },
+            "end": {
+              "line": 252,
+              "column": 29
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 11,
+          "name": "return value from xitoa",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 36
+            },
+            "end": {
+              "line": 293,
+              "column": 46
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        }
+      ],
+      "informers": [
+        {
+          "descr": "size is in { [0, 0] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 29
+            },
+            "end": {
+              "line": 293,
+              "column": 50
+            }
+          },
+          "affectedValues": [
+            10
+          ],
+          "dependencies": {
+            "enablerId": 5,
+            "precursors": [
+              {
+                "id": 10,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 29
+                  }
+                }
+              },
+              {
+                "id": 11,
+                "descr": "return value from xitoa",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 36
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 46
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "ruleId": "S5782",
+      "primaryLocation": {
+        "message": "\"memccpy\" overflows read buffer \"src\"; passed size \"n\" (12) exceeds buffer size (3).",
+        "location": {
+          "file": "files-with-issues/main.cpp",
+          "begin": {
+            "line": 95,
+            "column": 22
+          },
+          "end": {
+            "line": 95,
+            "column": 47
+          }
+        },
+        "dependencies": {
+          "enablerId": 1,
+          "precursors": [
+            {
+              "id": 2,
+              "descr": "size argument(arg n)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 46
+                },
+                "end": {
+                  "line": 95,
+                  "column": 46
+                }
+              }
+            },
+            {
+              "id": 3,
+              "descr": "buffer argument(arg src)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 35
+                },
+                "end": {
+                  "line": 95,
+                  "column": 35
+                }
+              }
+            }
+          ]
+        }
+      },
+      "enablers": [
+        {
+          "id": 1,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 9
+            },
+            "end": {
+              "line": 293,
+              "column": 57
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 16,
+            "precursors": [
+              {
+                "id": 20,
+                "descr": "var size_buf",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 19
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 19
+                  }
+                }
+              },
+              {
+                "id": 21,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 29
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 8,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 218,
+              "column": 7
+            },
+            "end": {
+              "line": 218,
+              "column": 13
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 13,
+            "precursors": [
+              {
+                "id": 14,
+                "descr": "var val",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 218,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 218,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 13,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 36
+            },
+            "end": {
+              "line": 293,
+              "column": 46
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 16,
+            "precursors": []
+          }
+        },
+        {
+          "id": 16,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 273,
+              "column": 13
+            },
+            "end": {
+              "line": 273,
+              "column": 17
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 17,
+            "precursors": [
+              {
+                "id": 19,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 273,
+                    "column": 13
+                  },
+                  "end": {
+                    "line": 273,
+                    "column": 13
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 17,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 270,
+              "column": 13
+            },
+            "end": {
+              "line": 270,
+              "column": 18
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 18,
+            "precursors": [
+              {
+                "id": 19,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 270,
+                    "column": 13
+                  },
+                  "end": {
+                    "line": 270,
+                    "column": 13
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 18,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 266,
+              "column": 7
+            },
+            "end": {
+              "line": 266,
+              "column": 12
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 19,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 266,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 266,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": 2,
+          "name": "arg n",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 55
+            },
+            "end": {
+              "line": 293,
+              "column": 55
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 3,
+          "name": "arg src",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 29
+            },
+            "end": {
+              "line": 293,
+              "column": 50
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 4,
+                "descr": "return value from xitoa",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 36
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 46
+                  }
+                }
+              },
+              {
+                "id": 21,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 29
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "name": "return value from xitoa",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 226,
+              "column": 10
+            },
+            "end": {
+              "line": 226,
+              "column": 19
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": 13,
+            "precursors": [
+              {
+                "id": 5,
+                "descr": "var next",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 226,
+                    "column": 15
+                  },
+                  "end": {
+                    "line": 226,
+                    "column": 15
+                  }
+                }
+              },
+              {
+                "id": 12,
+                "descr": "var dst",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 226,
+                    "column": 11
+                  },
+                  "end": {
+                    "line": 226,
+                    "column": 11
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "name": "next",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 223,
+              "column": 9
+            },
+            "end": {
+              "line": 223,
+              "column": 11
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": 8,
+            "precursors": [
+              {
+                "id": 10,
+                "descr": "var next",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 223,
+                    "column": 11
+                  },
+                  "end": {
+                    "line": 223,
+                    "column": 11
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 7,
+          "name": "i",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 221,
+              "column": 9
+            },
+            "end": {
+              "line": 221,
+              "column": 15
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": 8,
+            "precursors": [
+              {
+                "id": 14,
+                "descr": "var val",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 221,
+                    "column": 9
+                  },
+                  "end": {
+                    "line": 221,
+                    "column": 9
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 10,
+          "name": "next",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 206,
+              "column": 10
+            },
+            "end": {
+              "line": 206,
+              "column": 17
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 11,
+          "name": "digits",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 201,
+              "column": 3
+            },
+            "end": {
+              "line": 205,
+              "column": 77
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 12,
+          "name": "dst",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 200,
+              "column": 3
+            },
+            "end": {
+              "line": 200,
+              "column": 31
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 14,
+          "name": "arg val",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 42
+            },
+            "end": {
+              "line": 293,
+              "column": 42
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 21,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 42
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 42
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 19,
+          "name": "i",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 258,
+              "column": 2
+            },
+            "end": {
+              "line": 258,
+              "column": 11
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 20,
+          "name": "size_buf",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 255,
+              "column": 2
+            },
+            "end": {
+              "line": 255,
+              "column": 26
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 21,
+          "name": "size",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 252,
+              "column": 23
+            },
+            "end": {
+              "line": 252,
+              "column": 29
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 22,
+          "name": "return value from xitoa",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 36
+            },
+            "end": {
+              "line": 293,
+              "column": 46
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        }
+      ],
+      "informers": [
+        {
+          "descr": "size is in { [10, 99] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 222,
+              "column": 17
+            },
+            "end": {
+              "line": 222,
+              "column": 29
+            }
+          },
+          "affectedValues": [
+            21
+          ],
+          "dependencies": {
+            "enablerId": 8,
+            "precursors": [
+              {
+                "id": 7,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 222,
+                    "column": 24
+                  },
+                  "end": {
+                    "line": 222,
+                    "column": 24
+                  }
+                }
+              },
+              {
+                "id": 11,
+                "descr": "var digits",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 222,
+                    "column": 17
+                  },
+                  "end": {
+                    "line": 222,
+                    "column": 17
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "descr": "size is in { [10, 4294967295] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 218,
+              "column": 7
+            },
+            "end": {
+              "line": 218,
+              "column": 13
+            }
+          },
+          "affectedValues": [
+            21
+          ],
+          "dependencies": {
+            "enablerId": 13,
+            "precursors": [
+              {
+                "id": 14,
+                "descr": "var val",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 218,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 218,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "descr": "size is in { [1, 4294967295] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 29
+            },
+            "end": {
+              "line": 293,
+              "column": 50
+            }
+          },
+          "affectedValues": [
+            21
+          ],
+          "dependencies": {
+            "enablerId": 16,
+            "precursors": [
+              {
+                "id": 21,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 29
+                  }
+                }
+              },
+              {
+                "id": 22,
+                "descr": "return value from xitoa",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 36
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 46
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "ruleId": "S5782",
+      "primaryLocation": {
+        "message": "\"memccpy\" overflows read buffer \"src\"; passed size \"n\" (12) exceeds buffer size (2).",
+        "location": {
+          "file": "files-with-issues/main.cpp",
+          "begin": {
+            "line": 95,
+            "column": 22
+          },
+          "end": {
+            "line": 95,
+            "column": 47
+          }
+        },
+        "dependencies": {
+          "enablerId": 1,
+          "precursors": [
+            {
+              "id": 2,
+              "descr": "size argument(arg n)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 46
+                },
+                "end": {
+                  "line": 95,
+                  "column": 46
+                }
+              }
+            },
+            {
+              "id": 3,
+              "descr": "buffer argument(arg src)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 35
+                },
+                "end": {
+                  "line": 95,
+                  "column": 35
+                }
+              }
+            }
+          ]
+        }
+      },
+      "enablers": [
+        {
+          "id": 1,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 9
+            },
+            "end": {
+              "line": 293,
+              "column": 57
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 11,
+            "precursors": [
+              {
+                "id": 15,
+                "descr": "var size_buf",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 19
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 19
+                  }
+                }
+              },
+              {
+                "id": 16,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 29
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 8,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 36
+            },
+            "end": {
+              "line": 293,
+              "column": 46
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 11,
+            "precursors": []
+          }
+        },
+        {
+          "id": 11,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 273,
+              "column": 13
+            },
+            "end": {
+              "line": 273,
+              "column": 17
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 12,
+            "precursors": [
+              {
+                "id": 14,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 273,
+                    "column": 13
+                  },
+                  "end": {
+                    "line": 273,
+                    "column": 13
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 12,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 270,
+              "column": 13
+            },
+            "end": {
+              "line": 270,
+              "column": 18
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 13,
+            "precursors": [
+              {
+                "id": 14,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 270,
+                    "column": 13
+                  },
+                  "end": {
+                    "line": 270,
+                    "column": 13
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 13,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 266,
+              "column": 7
+            },
+            "end": {
+              "line": 266,
+              "column": 12
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 14,
+                "descr": "var i",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 266,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 266,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": 2,
+          "name": "arg n",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 55
+            },
+            "end": {
+              "line": 293,
+              "column": 55
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 3,
+          "name": "arg src",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 29
+            },
+            "end": {
+              "line": 293,
+              "column": 50
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 4,
+                "descr": "return value from xitoa",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 36
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 46
+                  }
+                }
+              },
+              {
+                "id": 16,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 29
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "name": "return value from xitoa",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 226,
+              "column": 10
+            },
+            "end": {
+              "line": 226,
+              "column": 19
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": 8,
+            "precursors": [
+              {
+                "id": 6,
+                "descr": "var next",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 226,
+                    "column": 15
+                  },
+                  "end": {
+                    "line": 226,
+                    "column": 15
+                  }
+                }
+              },
+              {
+                "id": 7,
+                "descr": "var dst",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 226,
+                    "column": 11
+                  },
+                  "end": {
+                    "line": 226,
+                    "column": 11
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 6,
+          "name": "next",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 206,
+              "column": 10
+            },
+            "end": {
+              "line": 206,
+              "column": 17
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 7,
+          "name": "dst",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 200,
+              "column": 3
+            },
+            "end": {
+              "line": 200,
+              "column": 31
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 9,
+          "name": "arg val",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 42
+            },
+            "end": {
+              "line": 293,
+              "column": 42
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 16,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 42
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 42
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 14,
+          "name": "i",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 258,
+              "column": 2
+            },
+            "end": {
+              "line": 258,
+              "column": 11
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 15,
+          "name": "size_buf",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 255,
+              "column": 2
+            },
+            "end": {
+              "line": 255,
+              "column": 26
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 16,
+          "name": "size",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 252,
+              "column": 23
+            },
+            "end": {
+              "line": 252,
+              "column": 29
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 17,
+          "name": "return value from xitoa",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 36
+            },
+            "end": {
+              "line": 293,
+              "column": 46
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        }
+      ],
+      "informers": [
+        {
+          "descr": "size is in { [1, 9] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 218,
+              "column": 7
+            },
+            "end": {
+              "line": 218,
+              "column": 13
+            }
+          },
+          "affectedValues": [
+            16
+          ],
+          "dependencies": {
+            "enablerId": 8,
+            "precursors": [
+              {
+                "id": 9,
+                "descr": "var val",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 218,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 218,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "descr": "size is in { [1, 4294967295] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 293,
+              "column": 29
+            },
+            "end": {
+              "line": 293,
+              "column": 50
+            }
+          },
+          "affectedValues": [
+            16
+          ],
+          "dependencies": {
+            "enablerId": 11,
+            "precursors": [
+              {
+                "id": 16,
+                "descr": "var size",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 29
+                  }
+                }
+              },
+              {
+                "id": 17,
+                "descr": "return value from xitoa",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 293,
+                    "column": 36
+                  },
+                  "end": {
+                    "line": 293,
+                    "column": 46
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "ruleId": "S5782",
+      "primaryLocation": {
+        "message": "\"memccpy\" overflows read buffer \"src\"; passed size \"n\" (4608) exceeds buffer size (6).",
+        "location": {
+          "file": "files-with-issues/main.cpp",
+          "begin": {
+            "line": 95,
+            "column": 22
+          },
+          "end": {
+            "line": 95,
+            "column": 47
+          }
+        },
+        "dependencies": {
+          "enablerId": 1,
+          "precursors": [
+            {
+              "id": 2,
+              "descr": "size argument(arg n)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 46
+                },
+                "end": {
+                  "line": 95,
+                  "column": 46
+                }
+              }
+            },
+            {
+              "id": 3,
+              "descr": "buffer argument(arg src)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 35
+                },
+                "end": {
+                  "line": 95,
+                  "column": 35
+                }
+              }
+            }
+          ]
+        }
+      },
+      "enablers": [
+        {
+          "id": 1,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 186,
+              "column": 14
+            },
+            "end": {
+              "line": 186,
+              "column": 62
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 5,
+                "descr": "return value from xstrsncpy",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 186,
+                    "column": 14
+                  },
+                  "end": {
+                    "line": 186,
+                    "column": 62
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": 2,
+          "name": "arg n",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 186,
+              "column": 51
+            },
+            "end": {
+              "line": 186,
+              "column": 51
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 3,
+          "name": "arg src",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 186,
+              "column": 31
+            },
+            "end": {
+              "line": 186,
+              "column": 48
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 4,
+                "descr": "var messages",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 186,
+                    "column": 31
+                  },
+                  "end": {
+                    "line": 186,
+                    "column": 31
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "name": "messages",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 135,
+              "column": 1
+            },
+            "end": {
+              "line": 178,
+              "column": 1
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 5,
+          "name": "return value from xstrsncpy",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 186,
+              "column": 14
+            },
+            "end": {
+              "line": 186,
+              "column": 62
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        }
+      ],
+      "informers": []
+    },
+    {
+      "ruleId": "S5782",
+      "primaryLocation": {
+        "message": "\"memccpy\" overflows read buffer \"src\"; passed size \"n\" (4095) exceeds buffer size (9).",
+        "location": {
+          "file": "files-with-issues/main.cpp",
+          "begin": {
+            "line": 95,
+            "column": 22
+          },
+          "end": {
+            "line": 95,
+            "column": 47
+          }
+        },
+        "dependencies": {
+          "enablerId": 1,
+          "precursors": [
+            {
+              "id": 2,
+              "descr": "size argument(arg n)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 46
+                },
+                "end": {
+                  "line": 95,
+                  "column": 46
+                }
+              }
+            },
+            {
+              "id": 3,
+              "descr": "buffer argument(arg src)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 95,
+                  "column": 35
+                },
+                "end": {
+                  "line": 95,
+                  "column": 35
+                }
+              }
+            }
+          ]
+        }
+      },
+      "enablers": [
+        {
+          "id": 1,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 115,
+              "column": 11
+            },
+            "end": {
+              "line": 115,
+              "column": 52
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 6,
+            "precursors": [
+              {
+                "id": 13,
+                "descr": "return value from xstrsncpy",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 115,
+                    "column": 11
+                  },
+                  "end": {
+                    "line": 115,
+                    "column": 52
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 110,
+              "column": 7
+            },
+            "end": {
+              "line": 110,
+              "column": 7
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 6,
+            "precursors": [
+              {
+                "id": 9,
+                "descr": "var dir",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 110,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 110,
+                    "column": 7
+                  }
+                }
+              },
+              {
+                "id": 9,
+                "descr": "var dir",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 110,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 110,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 6,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 107,
+              "column": 7
+            },
+            "end": {
+              "line": 107,
+              "column": 18
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 7,
+            "precursors": [
+              {
+                "id": 8,
+                "descr": "var name",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 107,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 107,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 7,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 124,
+              "column": 3
+            },
+            "end": {
+              "line": 124,
+              "column": 41
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 12,
+                "descr": "return value from mkpath",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 124,
+                    "column": 3
+                  },
+                  "end": {
+                    "line": 124,
+                    "column": 41
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": 2,
+          "name": "arg n",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 115,
+              "column": 38
+            },
+            "end": {
+              "line": 115,
+              "column": 49
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 4,
+                "descr": "var len",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 115,
+                    "column": 49
+                  },
+                  "end": {
+                    "line": 115,
+                    "column": 49
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 3,
+          "name": "arg src",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 115,
+              "column": 32
+            },
+            "end": {
+              "line": 115,
+              "column": 32
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 8,
+                "descr": "var name",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 115,
+                    "column": 32
+                  },
+                  "end": {
+                    "line": 115,
+                    "column": 32
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "name": "len",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 111,
+              "column": 11
+            },
+            "end": {
+              "line": 111,
+              "column": 11
+            }
+          },
+          "exampleValue": "1",
+          "dependencies": {
+            "enablerId": 5,
+            "precursors": []
+          }
+        },
+        {
+          "id": 8,
+          "name": "arg name",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 124,
+              "column": 19
+            },
+            "end": {
+              "line": 124,
+              "column": 31
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 11,
+                "descr": "var toks",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 124,
+                    "column": 19
+                  },
+                  "end": {
+                    "line": 124,
+                    "column": 19
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 9,
+          "name": "arg dir",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 124,
+              "column": 10
+            },
+            "end": {
+              "line": 124,
+              "column": 10
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 10,
+                "descr": "var cfgpath",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 124,
+                    "column": 10
+                  },
+                  "end": {
+                    "line": 124,
+                    "column": 10
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 10,
+          "name": "cfgpath",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 90,
+              "column": 1
+            },
+            "end": {
+              "line": 90,
+              "column": 14
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 11,
+          "name": "toks",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 87,
+              "column": 1
+            },
+            "end": {
+              "line": 89,
+              "column": 1
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 12,
+          "name": "return value from mkpath",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 124,
+              "column": 3
+            },
+            "end": {
+              "line": 124,
+              "column": 41
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 13,
+          "name": "return value from xstrsncpy",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 115,
+              "column": 11
+            },
+            "end": {
+              "line": 115,
+              "column": 52
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        }
+      ],
+      "informers": []
+    },
+    {
+      "ruleId": "S5782",
+      "primaryLocation": {
+        "message": "\"read\" overflows write buffer \"buffer\"; passed size \"a\" (15000) exceeds buffer size (512).",
+        "location": {
+          "file": "files-with-issues/main.cpp",
+          "begin": {
+            "line": 72,
+            "column": 5
+          },
+          "end": {
+            "line": 72,
+            "column": 23
+          }
+        },
+        "dependencies": {
+          "enablerId": 1,
+          "precursors": [
+            {
+              "id": 17,
+              "descr": "buffer argument(arg buf)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 72,
+                  "column": 14
+                },
+                "end": {
+                  "line": 72,
+                  "column": 14
+                }
+              }
+            },
+            {
+              "id": 19,
+              "descr": "size argument(arg nbyte)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 72,
+                  "column": 22
+                },
+                "end": {
+                  "line": 72,
+                  "column": 22
+                }
+              }
+            }
+          ]
+        }
+      },
+      "enablers": [
+        {
+          "id": 1,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 7
+            },
+            "end": {
+              "line": 71,
+              "column": 45
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 8,
+            "precursors": [
+              {
+                "id": 2,
+                "descr": "return value from myOr",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 33
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 45
+                  }
+                }
+              },
+              {
+                "id": 6,
+                "descr": "return value from myAnd",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 15
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 28
+                  }
+                }
+              },
+              {
+                "id": 18,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 3,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 33
+            },
+            "end": {
+              "line": 71,
+              "column": 45
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 8,
+            "precursors": [
+              {
+                "id": 22,
+                "descr": "return value from myOr",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 33
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 45
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 8,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 10
+            },
+            "end": {
+              "line": 45,
+              "column": 21
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 11,
+            "precursors": [
+              {
+                "id": 21,
+                "descr": "return value from myOr",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 10
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 21
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 11,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 15
+            },
+            "end": {
+              "line": 71,
+              "column": 28
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 15,
+            "precursors": []
+          }
+        },
+        {
+          "id": 15,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 66,
+              "column": 7
+            },
+            "end": {
+              "line": 66,
+              "column": 16
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 19,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 66,
+                    "column": 16
+                  },
+                  "end": {
+                    "line": 66,
+                    "column": 16
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": 2,
+          "name": "return value from myOr",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 41,
+              "column": 10
+            },
+            "end": {
+              "line": 41,
+              "column": 24
+            }
+          },
+          "exampleValue": "1",
+          "dependencies": {
+            "enablerId": 3,
+            "precursors": [
+              {
+                "id": 4,
+                "descr": "var i1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 41,
+                    "column": 22
+                  },
+                  "end": {
+                    "line": 41,
+                    "column": 22
+                  }
+                }
+              },
+              {
+                "id": 5,
+                "descr": "var b1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 41,
+                    "column": 10
+                  },
+                  "end": {
+                    "line": 41,
+                    "column": 10
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "name": "arg i1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 44
+            },
+            "end": {
+              "line": 71,
+              "column": 44
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 19,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 44
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 44
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "name": "arg b1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 38
+            },
+            "end": {
+              "line": 71,
+              "column": 38
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 18,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 38
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 38
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 6,
+          "name": "return value from myAnd",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 10
+            },
+            "end": {
+              "line": 45,
+              "column": 26
+            }
+          },
+          "exampleValue": "1",
+          "dependencies": {
+            "enablerId": 11,
+            "precursors": [
+              {
+                "id": 7,
+                "descr": "return value from myOr",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 10
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 21
+                  }
+                }
+              },
+              {
+                "id": 13,
+                "descr": "var b1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 26
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 26
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 7,
+          "name": "return value from myOr",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 41,
+              "column": 10
+            },
+            "end": {
+              "line": 41,
+              "column": 24
+            }
+          },
+          "exampleValue": "1",
+          "dependencies": {
+            "enablerId": 8,
+            "precursors": [
+              {
+                "id": 9,
+                "descr": "var i1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 41,
+                    "column": 22
+                  },
+                  "end": {
+                    "line": 41,
+                    "column": 22
+                  }
+                }
+              },
+              {
+                "id": 10,
+                "descr": "var b1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 41,
+                    "column": 10
+                  },
+                  "end": {
+                    "line": 41,
+                    "column": 10
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 9,
+          "name": "arg i1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 19
+            },
+            "end": {
+              "line": 45,
+              "column": 19
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 12,
+                "descr": "var i1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 19
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 19
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 10,
+          "name": "arg b1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 15
+            },
+            "end": {
+              "line": 45,
+              "column": 15
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 13,
+                "descr": "var b1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 15
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 15
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 12,
+          "name": "arg i1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 27
+            },
+            "end": {
+              "line": 71,
+              "column": 27
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 19,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 27
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 27
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 13,
+          "name": "arg b1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 21
+            },
+            "end": {
+              "line": 71,
+              "column": 21
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 18,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 21
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 21
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 17,
+          "name": "buffer",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 64,
+              "column": 3
+            },
+            "end": {
+              "line": 64,
+              "column": 28
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 18,
+          "name": "cond",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 62,
+              "column": 31
+            },
+            "end": {
+              "line": 62,
+              "column": 36
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 19,
+          "name": "a",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 62,
+              "column": 24
+            },
+            "end": {
+              "line": 62,
+              "column": 28
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 20,
+          "name": "return value from myAnd",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 15
+            },
+            "end": {
+              "line": 71,
+              "column": 28
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 21,
+          "name": "return value from myOr",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 10
+            },
+            "end": {
+              "line": 45,
+              "column": 21
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 22,
+          "name": "return value from myOr",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 33
+            },
+            "end": {
+              "line": 71,
+              "column": 45
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        }
+      ],
+      "informers": [
+        {
+          "descr": "cond is in { [1, 1] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 71,
+              "column": 7
+            },
+            "end": {
+              "line": 71,
+              "column": 28
+            }
+          },
+          "affectedValues": [
+            18
+          ],
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 18,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 7
+                  }
+                }
+              },
+              {
+                "id": 20,
+                "descr": "return value from myAnd",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 71,
+                    "column": 15
+                  },
+                  "end": {
+                    "line": 71,
+                    "column": 28
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "descr": "a is in { [15000, 15000] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 66,
+              "column": 7
+            },
+            "end": {
+              "line": 66,
+              "column": 16
+            }
+          },
+          "affectedValues": [
+            19
+          ],
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 19,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 66,
+                    "column": 16
+                  },
+                  "end": {
+                    "line": 66,
+                    "column": 16
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "ruleId": "S5782",
+      "primaryLocation": {
+        "message": "\"read\" overflows write buffer \"buffer\"; passed size \"a\" (15000) exceeds buffer size (512).",
+        "location": {
+          "file": "files-with-issues/main.cpp",
+          "begin": {
+            "line": 58,
+            "column": 5
+          },
+          "end": {
+            "line": 58,
+            "column": 23
+          }
+        },
+        "dependencies": {
+          "enablerId": 1,
+          "precursors": [
+            {
+              "id": 13,
+              "descr": "buffer argument(arg buf)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 58,
+                  "column": 14
+                },
+                "end": {
+                  "line": 58,
+                  "column": 14
+                }
+              }
+            },
+            {
+              "id": 15,
+              "descr": "size argument(arg nbyte)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 58,
+                  "column": 22
+                },
+                "end": {
+                  "line": 58,
+                  "column": 22
+                }
+              }
+            }
+          ]
+        }
+      },
+      "enablers": [
+        {
+          "id": 1,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 57,
+              "column": 7
+            },
+            "end": {
+              "line": 57,
+              "column": 28
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 4,
+            "precursors": [
+              {
+                "id": 2,
+                "descr": "return value from myAnd",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 57,
+                    "column": 15
+                  },
+                  "end": {
+                    "line": 57,
+                    "column": 28
+                  }
+                }
+              },
+              {
+                "id": 14,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 57,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 57,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 10
+            },
+            "end": {
+              "line": 45,
+              "column": 21
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 7,
+            "precursors": [
+              {
+                "id": 17,
+                "descr": "return value from myOr",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 10
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 21
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 7,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 57,
+              "column": 15
+            },
+            "end": {
+              "line": 57,
+              "column": 28
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 11,
+            "precursors": []
+          }
+        },
+        {
+          "id": 11,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 52,
+              "column": 7
+            },
+            "end": {
+              "line": 52,
+              "column": 16
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 15,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 52,
+                    "column": 16
+                  },
+                  "end": {
+                    "line": 52,
+                    "column": 16
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": 2,
+          "name": "return value from myAnd",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 10
+            },
+            "end": {
+              "line": 45,
+              "column": 26
+            }
+          },
+          "exampleValue": "1",
+          "dependencies": {
+            "enablerId": 7,
+            "precursors": [
+              {
+                "id": 3,
+                "descr": "return value from myOr",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 10
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 21
+                  }
+                }
+              },
+              {
+                "id": 9,
+                "descr": "var b1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 26
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 26
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 3,
+          "name": "return value from myOr",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 41,
+              "column": 10
+            },
+            "end": {
+              "line": 41,
+              "column": 24
+            }
+          },
+          "exampleValue": "1",
+          "dependencies": {
+            "enablerId": 4,
+            "precursors": [
+              {
+                "id": 5,
+                "descr": "var i1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 41,
+                    "column": 22
+                  },
+                  "end": {
+                    "line": 41,
+                    "column": 22
+                  }
+                }
+              },
+              {
+                "id": 6,
+                "descr": "var b1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 41,
+                    "column": 10
+                  },
+                  "end": {
+                    "line": 41,
+                    "column": 10
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "name": "arg i1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 19
+            },
+            "end": {
+              "line": 45,
+              "column": 19
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 8,
+                "descr": "var i1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 19
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 19
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 6,
+          "name": "arg b1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 15
+            },
+            "end": {
+              "line": 45,
+              "column": 15
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 9,
+                "descr": "var b1",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 45,
+                    "column": 15
+                  },
+                  "end": {
+                    "line": 45,
+                    "column": 15
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 8,
+          "name": "arg i1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 57,
+              "column": 27
+            },
+            "end": {
+              "line": 57,
+              "column": 27
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 15,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 57,
+                    "column": 27
+                  },
+                  "end": {
+                    "line": 57,
+                    "column": 27
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 9,
+          "name": "arg b1",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 57,
+              "column": 21
+            },
+            "end": {
+              "line": 57,
+              "column": 21
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 14,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 57,
+                    "column": 21
+                  },
+                  "end": {
+                    "line": 57,
+                    "column": 21
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 13,
+          "name": "buffer",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 50,
+              "column": 3
+            },
+            "end": {
+              "line": 50,
+              "column": 28
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 14,
+          "name": "cond",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 48,
+              "column": 28
+            },
+            "end": {
+              "line": 48,
+              "column": 33
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 15,
+          "name": "a",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 48,
+              "column": 21
+            },
+            "end": {
+              "line": 48,
+              "column": 25
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 16,
+          "name": "return value from myAnd",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 57,
+              "column": 15
+            },
+            "end": {
+              "line": 57,
+              "column": 28
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 17,
+          "name": "return value from myOr",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 45,
+              "column": 10
+            },
+            "end": {
+              "line": 45,
+              "column": 21
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        }
+      ],
+      "informers": [
+        {
+          "descr": "cond is in { [1, 1] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 57,
+              "column": 7
+            },
+            "end": {
+              "line": 57,
+              "column": 28
+            }
+          },
+          "affectedValues": [
+            14
+          ],
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 14,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 57,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 57,
+                    "column": 7
+                  }
+                }
+              },
+              {
+                "id": 16,
+                "descr": "return value from myAnd",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 57,
+                    "column": 15
+                  },
+                  "end": {
+                    "line": 57,
+                    "column": 28
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "descr": "a is in { [15000, 15000] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 52,
+              "column": 7
+            },
+            "end": {
+              "line": 52,
+              "column": 16
+            }
+          },
+          "affectedValues": [
+            15
+          ],
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 15,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 52,
+                    "column": 16
+                  },
+                  "end": {
+                    "line": 52,
+                    "column": 16
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "ruleId": "S5782",
+      "primaryLocation": {
+        "message": "\"read\" overflows write buffer \"buffer\"; passed size \"a + b\" (1011) exceeds buffer size (512).",
+        "location": {
+          "file": "files-with-issues/main.cpp",
+          "begin": {
+            "line": 34,
+            "column": 7
+          },
+          "end": {
+            "line": 34,
+            "column": 29
+          }
+        },
+        "dependencies": {
+          "enablerId": 2,
+          "precursors": [
+            {
+              "id": 1,
+              "descr": "size argument(arg nbyte)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 34,
+                  "column": 24
+                },
+                "end": {
+                  "line": 34,
+                  "column": 28
+                }
+              }
+            },
+            {
+              "id": 14,
+              "descr": "buffer argument(arg buf)",
+              "location": {
+                "file": "files-with-issues/main.cpp",
+                "begin": {
+                  "line": 34,
+                  "column": 16
+                },
+                "end": {
+                  "line": 34,
+                  "column": 16
+                }
+              }
+            }
+          ]
+        }
+      },
+      "enablers": [
+        {
+          "id": 2,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 33,
+              "column": 9
+            },
+            "end": {
+              "line": 33,
+              "column": 20
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 7,
+            "precursors": [
+              {
+                "id": 3,
+                "descr": "return value from alwaysTrue",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 33,
+                    "column": 9
+                  },
+                  "end": {
+                    "line": 33,
+                    "column": 20
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 33,
+              "column": 9
+            },
+            "end": {
+              "line": 33,
+              "column": 20
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 7,
+            "precursors": []
+          }
+        },
+        {
+          "id": 6,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 27,
+              "column": 9
+            },
+            "end": {
+              "line": 27,
+              "column": 9
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 7,
+            "precursors": [
+              {
+                "id": 17,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 27,
+                    "column": 9
+                  },
+                  "end": {
+                    "line": 27,
+                    "column": 9
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 7,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 25,
+              "column": 7
+            },
+            "end": {
+              "line": 25,
+              "column": 7
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": 9,
+            "precursors": [
+              {
+                "id": 11,
+                "descr": "var cond2",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 25,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 25,
+                    "column": 7
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 9,
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 22,
+              "column": 7
+            },
+            "end": {
+              "line": 22,
+              "column": 13
+            }
+          },
+          "kind": "branch",
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 16,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 22,
+                    "column": 13
+                  },
+                  "end": {
+                    "line": 22,
+                    "column": 13
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": 1,
+          "name": "arg nbyte",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 34,
+              "column": 24
+            },
+            "end": {
+              "line": 34,
+              "column": 28
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 5,
+                "descr": "var b",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 34,
+                    "column": 28
+                  },
+                  "end": {
+                    "line": 34,
+                    "column": 28
+                  }
+                }
+              },
+              {
+                "id": 16,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 34,
+                    "column": 24
+                  },
+                  "end": {
+                    "line": 34,
+                    "column": 24
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 3,
+          "name": "return value from alwaysTrue",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 7,
+              "column": 28
+            },
+            "end": {
+              "line": 7,
+              "column": 28
+            }
+          },
+          "exampleValue": "1",
+          "dependencies": {
+            "enablerId": 4,
+            "precursors": []
+          }
+        },
+        {
+          "id": 5,
+          "name": "b",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 29,
+              "column": 11
+            },
+            "end": {
+              "line": 29,
+              "column": 15
+            }
+          },
+          "exampleValue": "1001",
+          "dependencies": {
+            "enablerId": 6,
+            "precursors": [
+              {
+                "id": 12,
+                "descr": "var c",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 29,
+                    "column": 11
+                  },
+                  "end": {
+                    "line": 29,
+                    "column": 11
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 11,
+          "name": "cond2",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 16,
+              "column": 3
+            },
+            "end": {
+              "line": 16,
+              "column": 20
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 17,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 16,
+                    "column": 16
+                  },
+                  "end": {
+                    "line": 16,
+                    "column": 16
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 12,
+          "name": "c",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 15,
+              "column": 3
+            },
+            "end": {
+              "line": 15,
+              "column": 15
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 13,
+          "name": "b",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 14,
+              "column": 3
+            },
+            "end": {
+              "line": 14,
+              "column": 14
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 14,
+          "name": "buffer",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 12,
+              "column": 3
+            },
+            "end": {
+              "line": 12,
+              "column": 28
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 15,
+          "name": "fd",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 11,
+              "column": 3
+            },
+            "end": {
+              "line": 11,
+              "column": 19
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 16,
+          "name": "a",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 10,
+              "column": 20
+            },
+            "end": {
+              "line": 10,
+              "column": 24
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 17,
+          "name": "cond",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 10,
+              "column": 27
+            },
+            "end": {
+              "line": 10,
+              "column": 32
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 18,
+          "name": "return value from read",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 34,
+              "column": 7
+            },
+            "end": {
+              "line": 34,
+              "column": 29
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        },
+        {
+          "id": 19,
+          "name": "return value from alwaysTrue",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 33,
+              "column": 9
+            },
+            "end": {
+              "line": 33,
+              "column": 20
+            }
+          },
+          "exampleValue": null,
+          "dependencies": {
+            "enablerId": null,
+            "precursors": []
+          }
+        }
+      ],
+      "informers": [
+        {
+          "descr": "cond is in { [1, 1] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 25,
+              "column": 3
+            },
+            "end": {
+              "line": 36,
+              "column": 3
+            }
+          },
+          "affectedValues": [
+            17
+          ],
+          "dependencies": {
+            "enablerId": 9,
+            "precursors": [
+              {
+                "id": 11,
+                "descr": "var cond2",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 25,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 25,
+                    "column": 7
+                  }
+                }
+              },
+              {
+                "id": 12,
+                "descr": "var c",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 29,
+                    "column": 11
+                  },
+                  "end": {
+                    "line": 29,
+                    "column": 11
+                  }
+                }
+              },
+              {
+                "id": 13,
+                "descr": "var b",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 34,
+                    "column": 28
+                  },
+                  "end": {
+                    "line": 34,
+                    "column": 28
+                  }
+                }
+              },
+              {
+                "id": 13,
+                "descr": "var b",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 29,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 29,
+                    "column": 7
+                  }
+                }
+              },
+              {
+                "id": 13,
+                "descr": "var b",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 28,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 28,
+                    "column": 7
+                  }
+                }
+              },
+              {
+                "id": 14,
+                "descr": "var buffer",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 34,
+                    "column": 16
+                  },
+                  "end": {
+                    "line": 34,
+                    "column": 16
+                  }
+                }
+              },
+              {
+                "id": 15,
+                "descr": "var fd",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 34,
+                    "column": 12
+                  },
+                  "end": {
+                    "line": 34,
+                    "column": 12
+                  }
+                }
+              },
+              {
+                "id": 16,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 34,
+                    "column": 24
+                  },
+                  "end": {
+                    "line": 34,
+                    "column": 24
+                  }
+                }
+              },
+              {
+                "id": 17,
+                "descr": "var cond",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 27,
+                    "column": 9
+                  },
+                  "end": {
+                    "line": 27,
+                    "column": 9
+                  }
+                }
+              },
+              {
+                "id": 18,
+                "descr": "return value from read",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 34,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 34,
+                    "column": 29
+                  }
+                }
+              },
+              {
+                "id": 19,
+                "descr": "return value from alwaysTrue",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 33,
+                    "column": 9
+                  },
+                  "end": {
+                    "line": 33,
+                    "column": 20
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "descr": "a is in { [10, 10] }",
+          "location": {
+            "file": "files-with-issues/main.cpp",
+            "begin": {
+              "line": 18,
+              "column": 7
+            },
+            "end": {
+              "line": 18,
+              "column": 13
+            }
+          },
+          "affectedValues": [
+            16
+          ],
+          "dependencies": {
+            "enablerId": null,
+            "precursors": [
+              {
+                "id": 16,
+                "descr": "var a",
+                "location": {
+                  "file": "files-with-issues/main.cpp",
+                  "begin": {
+                    "line": 18,
+                    "column": 13
+                  },
+                  "end": {
+                    "line": 18,
+                    "column": 13
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

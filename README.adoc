@@ -1,0 +1,2 @@
+A protype of the issue display for symbolic execution based on data-flow.
+Enables interactive exploration of the issue dependencies.
